@@ -12,11 +12,16 @@ from typing import Literal
 import joblib
 import pandas as pd
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.drift_monitor import generate_drift_report
 
+
+# --------------------------------------------------
+# CONFIGURATION
+# --------------------------------------------------
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_PATH = ROOT / "artifacts" / "churn_pipeline.joblib"
@@ -55,7 +60,7 @@ CATEGORICAL_FEATURES = [
 
 FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
 
-# Set CHURN_API_KEY before starting the API.
+# Configure CHURN_API_KEY in the deployment environment.
 # The fallback is for local development only.
 API_KEY = os.getenv(
     "CHURN_API_KEY",
@@ -64,6 +69,10 @@ API_KEY = os.getenv(
 
 model_bundle = None
 
+
+# --------------------------------------------------
+# MODEL LIFECYCLE
+# --------------------------------------------------
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -112,6 +121,10 @@ async def lifespan(app: FastAPI):
     logger.info("Model unloaded.")
 
 
+# --------------------------------------------------
+# FASTAPI APPLICATION
+# --------------------------------------------------
+
 app = FastAPI(
     title="Customer Churn Prediction API",
     description=(
@@ -122,6 +135,19 @@ app = FastAPI(
     ),
     version="1.1.0",
     lifespan=lifespan,
+)
+
+# CORS: allow the local React/Vite development frontend.
+# Add your exact production frontend origin when deploying it.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "X-API-Key"],
 )
 
 
